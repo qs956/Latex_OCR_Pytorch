@@ -1,0 +1,2 @@
+# Latex_OCR_Pytorch
+基于Pytorch实现的图像Latex公式识别 inspire by LinXueyuanStdio/LaTeX_OCR_PRO
