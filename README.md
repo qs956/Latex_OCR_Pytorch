@@ -1,2 +1,77 @@
 # Latex_OCR_Pytorch
-基于Pytorch实现的图像Latex公式识别 inspire by LinXueyuanStdio/LaTeX_OCR_PRO
+主要是这个版本的Pytorch实现:
+
+[LinXueyuanStdio/LaTeX_OCR_PRO](https://github.com/LinXueyuanStdio/LaTeX_OCR_PRO)
+
+感谢@LinXueyuanStdio 的工作以及指导.本项目与上述项目思路一致，但在实现上修改了一些地方:
+
+* 数据集的重新定义,但使用原有类似的预处理方式
+* 代码简化，目前仅保留主要部分，命令行控制等在后续补充
+* 内存优化，相对较少的内存需求，但实测速度并没提高，甚至较慢
+* 在训练时候采用贪婪策略，Beam Search仅在推断时候采用
+* ...待补充
+
+Follow these paper:
+
+1. [Show, Attend and Tell(Kelvin Xu...)](https://arxiv.org/abs/1502.03044)
+2. [Harvard's paper and dataset](http://lstm.seas.harvard.edu/latex/)
+
+Follow these tutorial:
+
+1. [Seq2Seq for LaTeX generation](https://guillaumegenthial.github.io/image-to-latex.html).
+2. [a PyTorch Tutorial to Image Captioning](https://github.com/sgrvinod/a-PyTorch-Tutorial-to-Image-Captioning).
+
+## 环境
+1. Python >= 3.6
+2. Pytorch >= 1.2
+
+## 数据格式
+使用[LinXueyuanStdio/Data-for-LaTeX_OCR](https://github.com/LinXueyuanStdio/Data-for-LaTeX_OCR) 数据集,原仓库较大,后续提供打包下载.
+
+数据集文件生成参考[utils.py](./model/utils.py)的get_latex_ocrdata
+
+数据集文件json格式,包括训练集文件,验证集文件,字典文件.
+
+字典格式:
+
+python字典(符号——编号)的json储存
+
+数据集格式:
+
+```
+​```shell
+训练/验证数据集
+├── file_name1 图片文件名 str
+│   ├── img_path:文件路径(到文件名,含后缀) str
+│   ├── size:图片尺寸 [长,宽] list
+│   ├── caption:图片代表的公式,各个符号之间必须要空格分隔 str
+│   └── caption_len:len(caption.split()) int
+eg:
+{
+"0.png":
+    {
+    "img_path":"./mydata/0.png",
+    "size":[442,62],
+    "caption":"\frac { a + b } { 2 }",
+    "caption_len":9,
+    }
+}
+
+​```
+```
+
+图片预处理
+
+1. 灰度化
+2. 裁剪公式部分
+3. 上下左右各padding 8个像素
+4. `[可选]`下采样
+
+
+## To do
+
+- [ ]  推断部分
+- [ ] 位置嵌入机制(Positional Embedding)
+- [ ] Attention层的可视化
+- [ ] 预训练模型
+- [ ] 打包的训练数据
