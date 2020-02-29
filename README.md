@@ -24,12 +24,18 @@ Follow these tutorial:
 
 ## 环境
 1. Python >= 3.6
+
 2. Pytorch >= 1.2
 
-## 数据格式
+## 数据
 使用[LinXueyuanStdio/Data-for-LaTeX_OCR](https://github.com/LinXueyuanStdio/Data-for-LaTeX_OCR) 数据集,原仓库较大,后续提供打包下载.
 
-已包括上述仓库中small数据集,数据集文件生成参考[utils.py](./model/utils.py)的get_latex_ocrdata
+已包括上述仓库中small数据集
+印刷体数据全集[百度云](https://pan.baidu.com/s/1xIsgHDhVu85L8cGdqqG7kw ) 提取码：tapj
+
+## 数据格式
+
+数据集文件生成参考[utils.py](./model/utils.py)的get_latex_ocrdata
 
 数据集文件json格式,包括训练集文件,验证集文件,字典文件.
 
@@ -64,6 +70,8 @@ eg:
 ```
 
 图片预处理
+
+参考dataloader/data_turn主要进行以下操作
 
 1. 灰度化
 2. 裁剪公式部分

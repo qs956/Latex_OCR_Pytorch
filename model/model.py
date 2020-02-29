@@ -4,7 +4,7 @@ import math
 from torch import nn
 import torch.nn.functional as F
 # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-# device = "cpu"
+device = "cpu"
 
 class Encoder(nn.Module):
     def __init__(self):
@@ -54,7 +54,7 @@ class Encoder(nn.Module):
 
         # layer7 = layer7.contiguous()
         return layer7
-    #修改自:
+#修改自:
 # https://github.com/tensorflow/tensor2tensor/blob/37465a1759e278e8f073cd04cd9b4fe377d3c740/tensor2tensor/layers/common_attention.py
     def add_timing_signal_nd(self, x, min_timescale=1.0, max_timescale=1.0e4):
         """Adds a bunch of sinusoids of different frequencies to a Tensor.

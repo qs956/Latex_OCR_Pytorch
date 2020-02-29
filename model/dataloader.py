@@ -3,13 +3,35 @@ import torch
 import json
 import cv2
 import numpy as np
-from config import vocab_path
+from config import vocab_path,buckets
 from torch.utils.data import Dataset
 from model.utils import load_json
 
 vocab = load_json(vocab_path)
 
-def data_turn(img_data,pad_size = [8,8,8,8]):
+def get_new_size(old_size, buckets=buckets,ratio = 2):
+    """Computes new size from buckets
+
+    Args:
+        old_size: (width, height)
+        buckets: list of sizes
+
+    Returns:
+        new_size: original size or first bucket in iter order that matches the
+            size.
+
+    """
+    if buckets is None:
+        return old_size
+    else:
+        w, h = old_size[0]/ratio,old_size[1]/ratio
+        for (idx,(w_b, h_b)) in enumerate(buckets):
+            if w_b >= w and h_b >= h:
+                return w_b, h_b,idx
+
+    return old_size
+
+def data_turn(img_data,pad_size = [8,8,8,8],resize = False):
     #找到字符区域边界
     nnz_inds = np.where(img_data != 255)
     y_min = np.min(nnz_inds[1])
@@ -21,9 +43,11 @@ def data_turn(img_data,pad_size = [8,8,8,8]):
     #pad the image
     top, left, bottom, right = pad_size
     old_size = (old_im.shape[0] + left + right, old_im.shape[1] + top + bottom)
-    new_size = get_new_size(old_size, None)
-    new_im = np.ones(new_size , dtype = np.uint8)*255
+    new_im = np.ones(old_size , dtype = np.uint8)*255
     new_im[top:top+old_im.shape[0],left:left+old_im.shape[1]] = old_im
+    if resize:
+        new_size = get_new_size(old_size, buckets)[:2]
+        new_im = cv2.resize(new_im,new_size, cv2.INTER_LANCZOS4)
     return new_im
 
 
@@ -55,44 +79,18 @@ class formuladataset(object):
         self.data = load_json(data_json_path)#主要的数据文件
         self.ratio = ratio#下采样率
         self.batch_size = batch_size#批大小
-        self.buckets = [
-        [240, 100], [320, 80], [400, 80], [400, 100], [480, 80], [480, 100],
-        [560, 80], [560, 100], [640, 80], [640, 100], [720, 80], [720, 100],
-        [720, 120], [720, 200], [800, 100], [800, 320], [1000, 200],
-        [1000, 400], [1200, 200], [1600, 200],
-        ]#尺寸分类
+        self.buckets = buckets#尺寸分类
         self.buckets_index = np.array([i for i in range(len(self.buckets))],dtype = np.int32)#尺寸索引,用于shuffle
         self.bucket_data = [[]for i in range(len(self.buckets))]#用于存放不同尺寸的data
         self.img_list = np.array([i for i in self.data.keys()]) # 得到所有的图像名字的列表
         if self.batch_size!=1:
             self.bucket()
         self.iter = self._iter()
-    
-    def get_new_size(self,old_size, buckets,ratio = 2):
-        """Computes new size from buckets
 
-        Args:
-            old_size: (width, height)
-            buckets: list of sizes
-
-        Returns:
-            new_size: original size or first bucket in iter order that matches the
-                size.
-
-        """
-        if buckets is None:
-            return old_size
-        else:
-            w, h = old_size[0]/ratio,old_size[1]/ratio
-            for (idx,(w_b, h_b)) in enumerate(buckets):
-                if w_b >= w and h_b >= h:
-                    return w_b, h_b,idx
-
-        return old_size
     def bucket(self):
         print('Bucking data...')
         for i,j in self.data.items():
-            new_size = self.get_new_size(j['size'],self.buckets,self.ratio)
+            new_size = get_new_size(j['size'],self.buckets,self.ratio)
             if (len(new_size)!=3):
                 continue
             idx = new_size[-1]
