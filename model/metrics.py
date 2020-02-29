@@ -13,7 +13,7 @@ def evaluate(losses, top5accs, references, hypotheses):
     Edit_Distance = edit_distance(references, hypotheses)
     Score = bleu4 + Exact_Match + Edit_Distance/10
     print(
-    '\n * LOSS:{loss.avg:.3f},TOP-5 ACCURACY:{top5.avg:.3f},BLEU-4:{bleu},Exact Match:{Exact_Match},Edit Distance:{Edit_Distance:.3f},Score:{Score:.6f}'.format(
+    '\n * LOSS:{loss.avg:.3f},TOP-5 ACCURACY:{top5.avg:.3f},BLEU-4:{bleu:.3f},Exact Match:{Exact_Match:.1f},Edit Distance:{Edit_Distance:.3f},Score:{Score:.6f}'.format(
             loss=losses,
             top5=top5accs,
             bleu=bleu4,
@@ -21,6 +21,8 @@ def evaluate(losses, top5accs, references, hypotheses):
             Edit_Distance=Edit_Distance,
             Score = Score))
     return Score
+
+
 
 def exact_match_score(references, hypotheses):
     """Computes exact match scores.

@@ -1,4 +1,5 @@
-# Latex_OCR_Pytorch
+Latex_OCR_Pytorch
+
 主要是这个版本的Pytorch实现:
 
 [LinXueyuanStdio/LaTeX_OCR_PRO](https://github.com/LinXueyuanStdio/LaTeX_OCR_PRO)
@@ -7,7 +8,7 @@
 
 * 数据集的重新定义,但使用原有类似的预处理方式
 * 代码简化，目前仅保留主要部分，命令行控制等在后续补充
-* 内存优化，相对较少的内存需求，但实测速度并没提高，甚至较慢
+* 内存优化，相对较少的内存需求，支持较大批量的训练。但批大小一样的情况下实测速度提高不大
 * 在训练时候采用贪婪策略，Beam Search仅在推断时候采用
 * ...待补充
 
@@ -28,7 +29,7 @@ Follow these tutorial:
 ## 数据格式
 使用[LinXueyuanStdio/Data-for-LaTeX_OCR](https://github.com/LinXueyuanStdio/Data-for-LaTeX_OCR) 数据集,原仓库较大,后续提供打包下载.
 
-数据集文件生成参考[utils.py](./model/utils.py)的get_latex_ocrdata
+已包括上述仓库中small数据集,数据集文件生成参考[utils.py](./model/utils.py)的get_latex_ocrdata
 
 数据集文件json格式,包括训练集文件,验证集文件,字典文件.
 
@@ -46,6 +47,7 @@ python字典(符号——编号)的json储存
 │   ├── size:图片尺寸 [长,宽] list
 │   ├── caption:图片代表的公式,各个符号之间必须要空格分隔 str
 │   └── caption_len:len(caption.split()) int
+|   ...
 eg:
 {
 "0.png":
@@ -55,6 +57,7 @@ eg:
     "caption":"\frac { a + b } { 2 }",
     "caption_len":9,
     }
+"2.png":...
 }
 
 ​```
@@ -71,7 +74,7 @@ eg:
 ## To do
 
 - [ ]  推断部分
-- [ ] 位置嵌入机制(Positional Embedding)
 - [ ] Attention层的可视化
 - [ ] 预训练模型
 - [ ] 打包的训练数据
+- [ ] perplexity指标

@@ -9,6 +9,20 @@ def load_json(path):
         data = json.load(f)
     return data
 
+def cal_word_freq(vocab,formuladataset):
+    #统计词频用于计算perplexity
+    word_count = {}
+    for i in vocab.values():
+        word_count[i] = 0
+    count = 0
+    for i in formuladataset.data.values():
+        words = i['caption'].split()
+        for j in words:
+            word_count[vocab[j]] += 1
+            count += 1
+    for i in word_count.keys():
+        word_count[i] = word_count[i]/count
+    return word_count
 
 def get_latex_ocrdata(path,mode = 'val'):
     assert mode in ['val','train','test']

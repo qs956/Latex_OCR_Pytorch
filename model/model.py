@@ -3,68 +3,8 @@ import torch
 import math
 from torch import nn
 import torch.nn.functional as F
-device = "cpu"
-
-#修改自：
-# https://github.com/tensorflow/tensor2tensor/blob/37465a1759e278e8f073cd04cd9b4fe377d3c740/tensor2tensor/layers/common_attention.py
-def add_timing_signal_nd(x, min_timescale=1.0, max_timescale=1.0e4):
-    """Adds a bunch of sinusoids of different frequencies to a Tensor.
-
-    Each channel of the input Tensor is incremented by a sinusoid of a difft
-    frequency and phase in one of the positional dimensions.
-
-    This allows attention to learn to use absolute and relative positions.
-    Timing signals should be added to some precursors of both the query and the
-    memory inputs to attention.
-
-    The use of relative position is possible because sin(a+b) and cos(a+b) can
-    be experessed in terms of b, sin(a) and cos(a).
-
-    x is a Tensor with n "positional" dimensions, e.g. one dimension for a
-    sequence or two dimensions for an image
-
-    We use a geometric sequence of timescales starting with
-    min_timescale and ending with max_timescale.  The number of different
-    timescales is equal to channels // (n * 2). For each timescale, we
-    generate the two sinusoidal signals sin(timestep/timescale) and
-    cos(timestep/timescale).  All of these sinusoids are concatenated in
-    the channels dimension.
-
-    Args:
-        x: a Tensor with shape [batch, d1 ... dn, channels]
-        min_timescale: a float
-        max_timescale: a float
-
-    Returns:
-        a Tensor the same shape as x.
-
-    """
-    static_shape = list(x.shape) # [2, 512, 50, 120]
-    num_dims = len(static_shape) - 2  # 2
-    channels = x.shape[-1]  # 512 pytorch的通道是第二位
-    num_timescales = channels // (num_dims * 2)  # 512 // (2*2) = 128
-    log_timescale_increment = (
-        math.log(float(max_timescale) / float(min_timescale)) /
-        (torch.FloatTensor(num_timescales) - 1))  # -0.1 / 127
-    inv_timescales = min_timescale * torch.exp(
-        torch.FloatTensor(torch.arange(num_timescales).float()) * -log_timescale_increment)  # len == 128
-    print(log_timescale_increment,inv_timescales)
-    for dim in range(num_dims):  # dim == 0; 1
-        length = x.shape[dim + 1]  # 要跳过前两个维度
-        position = torch.arange(length).float()  # len == 50
-        scaled_time = torch.reshape(position,(-1,1)) * torch.reshape(inv_timescales,(1,-1))
-        #[50,1] x [1,128] = [50,128]
-        signal = torch.cat([torch.sin(scaled_time), torch.cos(scaled_time)], axis=1)  # [50, 256]
-        prepad = dim * 2 * num_timescales  # 0; 256
-        postpad = channels - (dim + 1) * 2 * num_timescales  # 512-(1;2)*2*128 = 256; 0
-        signal = F.pad(signal, (prepad,postpad,0,0))  # [50, 512]
-        for _ in range(1 + dim):  # 1; 2
-            signal = signal.unsqueeze(0)
-        for _ in range(num_dims - 1 - dim):  # 1, 0
-            signal = signal.unsqueeze(-2)
-        x += signal  # [1, 14, 1, 512]; [1, 1, 14, 512]
-    return x
-
+# device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+# device = "cpu"
 
 class Encoder(nn.Module):
     def __init__(self):
@@ -108,14 +48,70 @@ class Encoder(nn.Module):
         layer6 = F.relu(layer6)
 
         #位置嵌入
-        # layer7 = layer6.permute(0,2,3,1)
-        layer7 = torch.reshape(layer6,(-1,layer6.shape[2],layer6.shape[3],512))
-        layer7 = add_timing_signal_nd(layer7)
-        layer7 = torch.reshape(layer7,(-1,512,layer7.shape[1],layer7.shape[2]))
-        # layer7 = layer7.permute(0,3,1,2)
+        layer7 = layer6.permute(0,2,3,1)
+        layer7 = self.add_timing_signal_nd(layer7)
+        layer7 = layer7.permute(0,3,1,2)
 
         # layer7 = layer7.contiguous()
-        return layer6
+        return layer7
+    #修改自:
+# https://github.com/tensorflow/tensor2tensor/blob/37465a1759e278e8f073cd04cd9b4fe377d3c740/tensor2tensor/layers/common_attention.py
+    def add_timing_signal_nd(self, x, min_timescale=1.0, max_timescale=1.0e4):
+        """Adds a bunch of sinusoids of different frequencies to a Tensor.
+
+        Each channel of the input Tensor is incremented by a sinusoid of a difft
+        frequency and phase in one of the positional dimensions.
+
+        This allows attention to learn to use absolute and relative positions.
+        Timing signals should be added to some precursors of both the query and the
+        memory inputs to attention.
+
+        The use of relative position is possible because sin(a+b) and cos(a+b) can
+        be experessed in terms of b, sin(a) and cos(a).
+
+        x is a Tensor with n "positional" dimensions, e.g. one dimension for a
+        sequence or two dimensions for an image
+
+        We use a geometric sequence of timescales starting with
+        min_timescale and ending with max_timescale.  The number of different
+        timescales is equal to channels // (n * 2). For each timescale, we
+        generate the two sinusoidal signals sin(timestep/timescale) and
+        cos(timestep/timescale).  All of these sinusoids are concatenated in
+        the channels dimension.
+
+        Args:
+            x: a Tensor with shape [batch, d1 ... dn, channels]
+            min_timescale: a float
+            max_timescale: a float
+
+        Returns:
+            a Tensor the same shape as x.
+
+        """
+        static_shape = list(x.shape) # [2, 512, 50, 120]
+        num_dims = len(static_shape) - 2  # 2
+        channels = x.shape[-1]  # 512 
+        num_timescales = channels // (num_dims * 2)  # 512 // (2*2) = 128
+        log_timescale_increment = (
+            math.log(float(max_timescale) / float(min_timescale)) /
+            (float(num_timescales) - 1))
+        inv_timescales = min_timescale * torch.exp(
+            torch.FloatTensor([i for i in range(num_timescales)]) * -log_timescale_increment)  # len == 128
+        for dim in range(num_dims):  # dim == 0; 1
+            length = x.shape[dim + 1]  # 要跳过前两个维度
+            position = torch.arange(length).float()  # len == 50
+            scaled_time = torch.reshape(position,(-1,1)) * torch.reshape(inv_timescales,(1,-1))
+            #[50,1] x [1,128] = [50,128]
+            signal = torch.cat([torch.sin(scaled_time), torch.cos(scaled_time)], axis=1).to(device)  # [50, 256]
+            prepad = dim * 2 * num_timescales  # 0; 256
+            postpad = channels - (dim + 1) * 2 * num_timescales  # 512-(1;2)*2*128 = 256; 0
+            signal = F.pad(signal, (prepad,postpad,0,0))  # [50, 512]
+            for _ in range(1 + dim):  # 1; 2
+                signal = signal.unsqueeze(0)
+            for _ in range(num_dims - 1 - dim):  # 1, 0
+                signal = signal.unsqueeze(-2)
+            x += signal  # [1, 14, 1, 512]; [1, 1, 14, 512]
+        return x
 
 class Attention(nn.Module):
     """
@@ -174,7 +170,7 @@ class DecoderWithAttention(nn.Module):
         self.vocab_size = vocab_size
         self.dropout = dropout
 
-        self.attention = Attention(encoder_dim, decoder_dim, attention_dim)  # attention network
+        self.attention = Attention(encoder_dim, decoder_dim, attention_dim).to(device)  # attention network
 
         self.embedding = nn.Embedding(vocab_size, embed_dim)  # embedding layer
         self.dropout = nn.Dropout(p=self.dropout)

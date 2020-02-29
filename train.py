@@ -4,16 +4,21 @@ import torch.backends.cudnn as cudnn
 import torch.optim
 import torch.utils.data
 from torch import nn
+from tqdm import tqdm
 from torch.nn.utils.rnn import pack_padded_sequence
-from model.model import *
 from model.utils import *
-# from model.dataloader import *
-from model import metrics,dataloader
+from model import metrics,dataloader,model
 
-# device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-global device
-device = "cpu"
-cudnn.benchmark = False  
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+# device = "cpu"
+
+
+model.device = device
+'''
+如果网络的输入数据维度或类型上变化不大，设置  torch.backends.cudnn.benchmark = true  可以增加运行效率；
+如果网络的输入数据在每次 iteration 都变化的话，会导致 cnDNN 每次都会去寻找一遍最优配置，这样反而会降低运行效率。
+'''
+cudnn.benchmark = False
 
 
 def main():
@@ -28,14 +33,14 @@ def main():
 
     # Initialize / load checkpoint
     if checkpoint is None:
-        decoder = DecoderWithAttention(attention_dim=attention_dim,
+        decoder = model.DecoderWithAttention(attention_dim=attention_dim,
                                        embed_dim=emb_dim,
                                        decoder_dim=decoder_dim,
                                        vocab_size=len(word_map),
                                        dropout=dropout)
         decoder_optimizer = torch.optim.Adam(params=filter(lambda p: p.requires_grad, decoder.parameters()),
                                              lr=decoder_lr)
-        encoder = Encoder()
+        encoder = model.Encoder()
         encoder_optimizer = None
         # encoder_optimizer = torch.optim.Adam(params=filter(lambda p: p.requires_grad, encoder.parameters()),
         #                                      lr=encoder_lr) if fine_tune_encoder else None
@@ -63,8 +68,12 @@ def main():
     criterion = nn.CrossEntropyLoss().to(device)
 
     # 自定义的数据集
-    train_loader = dataloader.formuladataset('val1.json',batch_size = batch_size)
-    val_loader = dataloader.formuladataset('test1.json',batch_size = test_batch_size)
+    train_loader = dataloader.formuladataset(train_set_path,batch_size = batch_size)
+    val_loader = dataloader.formuladataset(val_set_path,batch_size = test_batch_size)
+
+    # #统计验证集的词频
+    # words_freq = cal_word_freq(word_map,val_loader)
+    # print(words_freq)
 
     # Epochs
     for epoch in range(start_epoch, epochs):
@@ -131,7 +140,7 @@ def train(train_loader, encoder, decoder, criterion, decoder_optimizer, epoch):
     start = time.time()
 
     # Batches
-    for i, (imgs, caps, caplens) in enumerate(train_loader):
+    for i, (imgs, caps, caplens) in tqdm(enumerate(train_loader)):
         data_time.update(time.time() - start)
 
         # Move to GPU, if available
@@ -218,11 +227,10 @@ def validate(val_loader, encoder, decoder, criterion):
     hypotheses = list()  # hypotheses (predictions)
 
     # explicitly disable gradient calculation to avoid CUDA memory error
-    # solves the issue #57
     with torch.no_grad():
         # Batches
         # for i, (imgs, caps, caplens, allcaps) in enumerate(val_loader):
-        for i, (imgs, caps, caplens) in enumerate(val_loader):
+        for i, (imgs, caps, caplens) in tqdm(enumerate(val_loader)):
 
             # Move to device, if available
             imgs = imgs.to(device)
@@ -258,10 +266,10 @@ def validate(val_loader, encoder, decoder, criterion):
             start = time.time()
 
             if i % print_freq == 0:
-                print('Validation: [{0}/{1}]\t'
-                      'Batch Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
-                      'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
-                      'Top-5 Accuracy {top5.val:.3f} ({top5.avg:.3f})\t'.format(i, len(val_loader), batch_time=batch_time,
+                print('Validation: [{0}/{1}],'
+                      'Batch Time {batch_time.val:.3f} ({batch_time.avg:.3f}),'
+                      'Loss {loss.val:.4f} ({loss.avg:.4f}),'
+                      'Top-5 Accuracy {top5.val:.3f} ({top5.avg:.3f}),'.format(i, len(val_loader), batch_time=batch_time,
                                                                                 loss=losses, top5=top5accs))
 
             # Store references (true captions), and hypothesis (prediction) for each image
