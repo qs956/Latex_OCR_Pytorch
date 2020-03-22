@@ -24,36 +24,42 @@ class Encoder(nn.Module):
         self.maxpool4 = nn.MaxPool2d((1,2),stride=(1,2),padding=(0,1))
         
         self.conv6 = nn.Conv2d(512,512,3)
-    def forward(self,img):
-        layer1 = self.conv1(img)
-        layer1 = self.maxpool1(layer1)
-        layer1 = F.relu(layer1)
+    def forward(self,x):
+        #layer1
+        x = self.conv1(x)
+        x = self.maxpool1(x)
+        x = F.relu(x)
         
-        layer2 = self.conv2(layer1)
-        layer2 = self.maxpool2(layer2)
-        layer2 = F.relu(layer2)
+        #layer2
+        x = self.conv2(x)
+        x = self.maxpool2(x)
+        x = F.relu(x)
         
-        layer3 = self.conv3(layer2)
-        layer3 = F.relu(layer3)
+        #layer3
+        x = self.conv3(x)
+        x = F.relu(x)
         
-        layer4 = self.conv4(layer3)
-        layer4 = self.maxpool3(layer4)
-        layer4 = F.relu(layer4)
+        #layer4
+        x = self.conv4(x)
+        x = self.maxpool3(x)
+        x = F.relu(x)
         
-        layer5 = self.conv5(layer4)
-        layer5 = self.maxpool4(layer5)
-        layer5 = F.relu(layer5)
+        #layer5
+        x = self.conv5(x)
+        x = self.maxpool4(x)
+        x = F.relu(x)
         
-        layer6 = self.conv6(layer5)
-        layer6 = F.relu(layer6)
+        #layer6
+        x = self.conv6(x)
+        x = F.relu(x)
 
         #位置嵌入
-        layer7 = layer6.permute(0,2,3,1)
-        layer7 = self.add_timing_signal_nd(layer7)
-        layer7 = layer7.permute(0,3,1,2)
+        x = x.permute(0,2,3,1)
+        x = self.add_timing_signal_nd(x)
+        x = x.permute(0,3,1,2)
 
-        # layer7 = layer7.contiguous()
-        return layer7
+        x = x.contiguous()
+        return x
 #修改自:
 # https://github.com/tensorflow/tensor2tensor/blob/37465a1759e278e8f073cd04cd9b4fe377d3c740/tensor2tensor/layers/common_attention.py
     def add_timing_signal_nd(self, x, min_timescale=1.0, max_timescale=1.0e4):
@@ -152,7 +158,7 @@ class DecoderWithAttention(nn.Module):
     Decoder.
     """
 
-    def __init__(self, attention_dim, embed_dim, decoder_dim, vocab_size, encoder_dim=512, dropout=0.5):
+    def __init__(self, attention_dim, embed_dim, decoder_dim, vocab_size, encoder_dim=512, dropout=0.5, p=0):
         """
         :param attention_dim: size of attention network
         :param embed_dim: embedding size
@@ -174,13 +180,15 @@ class DecoderWithAttention(nn.Module):
 
         self.embedding = nn.Embedding(vocab_size, embed_dim)  # embedding layer
         self.dropout = nn.Dropout(p=self.dropout)
-        self.decode_step = nn.LSTMCell(embed_dim + encoder_dim, decoder_dim, bias=True)  # decoding LSTMCell
+        # self.decode_step = nn.LSTMCell(embed_dim + encoder_dim, decoder_dim, bias=True)  # decoding LSTMCell
+        self.decode_step = nn.GRUCell(embed_dim + encoder_dim, decoder_dim, bias=True)  # decoding LSTMCell
         self.init_h = nn.Linear(encoder_dim, decoder_dim)  # linear layer to find initial hidden state of LSTMCell
         self.init_c = nn.Linear(encoder_dim, decoder_dim)  # linear layer to find initial cell state of LSTMCell
         self.f_beta = nn.Linear(decoder_dim, encoder_dim)  # linear layer to create a sigmoid-activated gate
         self.sigmoid = nn.Sigmoid()
         self.fc = nn.Linear(decoder_dim, vocab_size)  # linear layer to find scores over vocabulary
         self.init_weights()  # initialize some layers with the uniform distribution
+        self.p = p #teacher forcing概率
 
     def init_weights(self):
         """
@@ -199,10 +207,11 @@ class DecoderWithAttention(nn.Module):
         """
         mean_encoder_out = encoder_out.mean(dim=1)
         h = self.init_h(mean_encoder_out)  # (batch_size, decoder_dim)
-        c = self.init_c(mean_encoder_out)
-        return h, c
+        # c = self.init_c(mean_encoder_out)
+        # return h, c
+        return h
 
-    def forward(self, encoder_out, encoded_captions, caption_lengths):
+    def forward(self, encoder_out, encoded_captions, caption_lengths,p = 1):
         """
         Forward propagation.
         :param encoder_out: encoder的输出 (batch_size, enc_image_size, enc_image_size, encoder_dim)
@@ -210,6 +219,7 @@ class DecoderWithAttention(nn.Module):
         :param caption_lengths: caption lengths, a tensor of dimension (batch_size, 1)
         :return: scores for vocabulary, sorted encoded captions, decode lengths, weights, sort indices
         """
+        self.p = p
         batch_size = encoder_out.size(0)
         encoder_dim = encoder_out.size(1)#这里和普通的resnet输出的不同，resnet是最后一个维度是C
         vocab_size = self.vocab_size
@@ -227,27 +237,37 @@ class DecoderWithAttention(nn.Module):
         # Embedding
         embeddings = self.embedding(encoded_captions)  # (batch_size, max_caption_length, embed_dim)
 
-        # 初始化LSTM状态
-        h, c = self.init_hidden_state(encoder_out)  # (batch_size, decoder_dim)
+        # 初始化GRU状态
+        # h, c = self.init_hidden_state(encoder_out)  # (batch_size, decoder_dim)
+        h = self.init_hidden_state(encoder_out)  # (batch_size, decoder_dim)
 
         # 我们一旦生成了<end>就已经完成了解码
         # 因此需要解码的长度实际是 lengths - 1
         decode_lengths = (caption_lengths - 1).tolist()
         # 新建两个张量用于存放 word predicion scores and alphas
-        global device
         predictions = torch.zeros(batch_size, max(decode_lengths), vocab_size).to(device)
         alphas = torch.zeros(batch_size, max(decode_lengths), num_pixels).to(device)
 
         # 在每一个时间步根据解码器的前一个状态以及经过attention加权后的encoder输出进行解码
         for t in range(max(decode_lengths)):
+            #decode_lengths是解码长度降序的排列,batch_size_t求出当前时间步中需要进行解码的数量
             batch_size_t = sum([l > t for l in decode_lengths])
             attention_weighted_encoding, alpha = self.attention(encoder_out[:batch_size_t],
                                                                 h[:batch_size_t])
             gate = self.sigmoid(self.f_beta(h[:batch_size_t]))  # gating scalar, (batch_size_t, encoder_dim)
             attention_weighted_encoding = gate * attention_weighted_encoding
-            h, c = self.decode_step(
-                torch.cat([embeddings[:batch_size_t, t, :], attention_weighted_encoding], dim=1),
-                (h[:batch_size_t], c[:batch_size_t]))  # (batch_size_t, decoder_dim)
+            # h, c = self.decode_step(
+            #     torch.cat([embeddings[:batch_size_t, t, :], attention_weighted_encoding], dim=1),
+            #     (h[:batch_size_t], c[:batch_size_t]))  # (batch_size_t, decoder_dim)
+            #teahcer forcing
+            if t==1 or (np.random.rand() < self.p) :
+                h = self.decode_step(
+                    torch.cat([embeddings[:batch_size_t, t, :], attention_weighted_encoding], dim=1),
+                    h[:batch_size_t])  # (batch_size_t, decoder_dim)
+            else:
+                h = self.decode_step(
+                    torch.cat([self.embedding(torch.argmax(predictions[:batch_size_t, t, :],dim = 1)), attention_weighted_encoding], dim=1),
+                    h[:batch_size_t])  # (batch_size_t, decoder_dim)
             preds = self.fc(self.dropout(h))  # (batch_size_t, vocab_size)
             predictions[:batch_size_t, t, :] = preds
             alphas[:batch_size_t, t, :] = alpha

@@ -1,4 +1,5 @@
 /data/full
+/data/CROHME
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

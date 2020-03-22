@@ -83,8 +83,8 @@ class formuladataset(object):
         self.buckets_index = np.array([i for i in range(len(self.buckets))],dtype = np.int32)#尺寸索引,用于shuffle
         self.bucket_data = [[]for i in range(len(self.buckets))]#用于存放不同尺寸的data
         self.img_list = np.array([i for i in self.data.keys()]) # 得到所有的图像名字的列表
-        if self.batch_size!=1:
-            self.bucket()
+        # if self.batch_size!=1:
+        self.bucket()
         self.iter = self._iter()
 
     def bucket(self):
@@ -99,6 +99,10 @@ class formuladataset(object):
         print('finish bucking!')
     
     def shuffle(self):#打乱顺序
+        # if(self.batch_size==1):
+        #     np.random.shuffle(self.bucket_data)
+        #     self.iter = self._iter()
+        # else:
         np.random.shuffle(self.buckets_index)
         self.buckets = np.array(self.buckets)
         self.buckets = self.buckets[self.buckets_index]
