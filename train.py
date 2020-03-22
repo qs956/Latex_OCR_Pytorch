@@ -90,10 +90,11 @@ def main():
         print('start epoch:%u'%epoch,'p:%.2f'%p)
 
         # 如果迭代4次后没有改善,则对学习率进行衰减,如果迭代20次都没有改善则触发早停.直到最大迭代次数
-        if epochs_since_improvement == 20:
+        if epochs_since_improvement == 30:
             break
         if epochs_since_improvement > 0 and epochs_since_improvement % 2 == 0:
-            adjust_learning_rate(decoder_optimizer, 0.8)
+            adjust_learning_rate(decoder_optimizer, 0.7)
+            adjust_learning_rate(encoder_optimizer, 0.8)
         #动态学习率调节
         # torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', factor=0.8, 
         #     patience=4, verbose=True, threshold=0.0001, threshold_mode='rel', cooldown=0, min_lr=1e-6, eps=1e-8)
