@@ -9,8 +9,9 @@ Latex_OCR_Pytorch
 * 数据集的重新定义,但使用原有类似的预处理方式
 * 代码简化，目前仅保留主要部分，命令行控制等在后续补充
 * 内存优化，相对较少的内存需求，支持较大批量的训练。但批大小一样的情况下实测速度提高不大
+* 使用Checkpoint特性，在编码过程中出现OOM则自动进行分段计算
 * 在训练时候采用贪婪策略，Beam Search仅在推断时候采用
-* ...待补充
+* Scheduled Sampling策略
 
 Follow these paper:
 
@@ -31,7 +32,16 @@ Follow these tutorial:
 使用[LinXueyuanStdio/Data-for-LaTeX_OCR](https://github.com/LinXueyuanStdio/Data-for-LaTeX_OCR) 数据集,原仓库较大,后续提供打包下载.
 
 已包括上述仓库中small数据集
-印刷体数据全集[百度云](https://pan.baidu.com/s/1xIsgHDhVu85L8cGdqqG7kw ) 提取码：tapj
+印刷体数据全集[百度云](https://pan.baidu.com/s/1xIsgHDhVu85L8cGdqqG7kw ) 提取码：tapj [Google Drive](https://drive.google.com/open?id=1THp_O7uwavcjsnQXsxx_JPvYn9-gml7T)
+自己划分的混合CROHME2011,2012数据集[Google Drive](https://drive.google.com/open?id=1KgpAzA7k8ayjPTstin6M8ykGsW8GR9bu)
+
+
+## 训练模型
+在自己划分CROHME2011,2012数据集上使用以下参数的训练模型[Google Drive](https://drive.google.com/open?id=1_geqm9a86TJKK9RpZ39d9X5655s4NXa9)
+emb_dim = 30 
+attention_dim = 128
+decoder_dim = 128
+后续补充模型测试结果以及colab
 
 ## 数据格式
 
@@ -83,6 +93,6 @@ eg:
 
 - [ ]  推断部分
 - [ ] Attention层的可视化
-- [ ] 预训练模型
-- [ ] 打包的训练数据
+- [x] 预训练模型
+- [x] 打包的训练数据
 - [ ] perplexity指标
